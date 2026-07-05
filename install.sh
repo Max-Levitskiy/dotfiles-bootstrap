@@ -60,11 +60,24 @@ command -v op      >/dev/null 2>&1 || { info "brew install 1password-cli";  brew
 [ -d "/Applications/1Password.app" ] || { info "brew install --cask 1password"; brew install --cask 1password || warn "install the 1Password app manually if this failed"; }
 ok "chezmoi + op installed"
 
-# --- 4. Clone the private repo — the clone itself IS the auth test ----------
-# (No fragile ssh pre-probe: if 1Password's SSH agent is set up, the clone just
-#  works; only a real failure shows the setup steps and retries.)
-step "Cloning dotfiles"
+# --- 4. Unlock 1Password ----------------------------------------------------
+# The SSH agent only serves keys while the app session is unlocked, and secrets
+# need the CLI authenticated. Touch the CLI to trigger an unlock (Touch ID).
+step "Unlock 1Password"
 [ -S "$OP_AGENT_SOCK" ] && export SSH_AUTH_SOCK="$OP_AGENT_SOCK"
+# Best-effort: a single `op` call triggers the app's Touch ID unlock (when CLI
+# integration is on), activating the SSH agent + enabling secrets. Never blocks —
+# the clone below is the real gate.
+if command -v op >/dev/null 2>&1; then
+  if op whoami >/dev/null 2>&1; then
+    ok "1Password unlocked ($(op whoami 2>/dev/null | head -1))"
+  else
+    warn "1Password CLI not authenticated — enable Settings → Developer → \"Integrate with 1Password CLI\" for secrets; the clone will still test SSH auth."
+  fi
+fi
+
+# --- 5. Clone the private repo — the clone itself IS the auth test ----------
+step "Cloning dotfiles"
 until chezmoi init "$DOTFILES_REPO"; do
   warn "Clone failed — GitHub SSH auth isn't ready yet. Set up 1Password, then retry:"
   cat <<EOF
@@ -77,7 +90,7 @@ EOF
 done
 ok "cloned"
 
-# --- 5. Optional: enable 1Password secrets on this machine ------------------
+# --- 6. Optional: enable 1Password secrets on this machine ------------------
 WANT_OP=""
 if op whoami >/dev/null 2>&1; then
   printf '\n  \033[1mSync your 1Password secrets (API keys) onto this machine? [y/N]\033[0m '
@@ -87,7 +100,7 @@ else
   info "1Password CLI not authenticated — applying without secrets (enable CLI integration, then 'USE_OP=1 chezmoi apply')"
 fi
 
-# --- 6. Apply: dotfiles + toolchain ----------------------------------------
+# --- 7. Apply: dotfiles + toolchain ----------------------------------------
 step "Applying (dotfiles + toolchain)"
 if [ -n "$WANT_OP" ]; then USE_OP=1 chezmoi apply; else chezmoi apply; fi
 
