@@ -60,42 +60,36 @@ command -v op      >/dev/null 2>&1 || { info "brew install 1password-cli";  brew
 [ -d "/Applications/1Password.app" ] || { info "brew install --cask 1password"; brew install --cask 1password || warn "install the 1Password app manually if this failed"; }
 ok "chezmoi + op installed"
 
-# --- 4. Authorization: 1Password SSH agent (required to clone the private repo)
-step "1Password authorization"
+# --- 4. Clone the private repo — the clone itself IS the auth test ----------
+# (No fragile ssh pre-probe: if 1Password's SSH agent is set up, the clone just
+#  works; only a real failure shows the setup steps and retries.)
+step "Cloning dotfiles"
 [ -S "$OP_AGENT_SOCK" ] && export SSH_AUTH_SOCK="$OP_AGENT_SOCK"
-github_ok() { ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 | grep -qiE "successfully authenticated|^Hi "; }
-if github_ok; then
-  ok "GitHub SSH auth works (1Password agent)"
-else
+until chezmoi init "$DOTFILES_REPO"; do
+  warn "Clone failed — GitHub SSH auth isn't ready yet. Set up 1Password, then retry:"
   cat <<EOF
-  $(bold "Set up 1Password so this machine can clone the private dotfiles repo:")
     1. Open the 1Password app and sign in to your personal account: $OP_ACCOUNT
-    2. Settings → Developer → turn ON:
-         • "Use the SSH agent"            (provides your GitHub key)
-         • "Integrate with 1Password CLI" (needed later for secrets)
-    3. Accept 1Password's offer to configure the SSH agent.
+    2. Settings → Developer → turn ON "Use the SSH agent" and "Integrate with 1Password CLI".
+    3. Accept 1Password's offer to add its agent to ~/.ssh/config.
 EOF
-  while ! github_ok; do
-    pause "Press Enter once 1Password is signed in and the SSH agent is on (Ctrl-C to abort)…"
-    [ -S "$OP_AGENT_SOCK" ] && export SSH_AUTH_SOCK="$OP_AGENT_SOCK"
-  done
-  ok "GitHub SSH auth works"
-fi
+  pause "Press Enter to retry (Ctrl-C to abort)…"
+  [ -S "$OP_AGENT_SOCK" ] && export SSH_AUTH_SOCK="$OP_AGENT_SOCK"
+done
+ok "cloned"
 
 # --- 5. Optional: enable 1Password secrets on this machine ------------------
 WANT_OP=""
 if op whoami >/dev/null 2>&1; then
-  printf '\n  \033[1mAlso sync your 1Password secrets (API keys) onto this machine? [y/N]\033[0m '
+  printf '\n  \033[1mSync your 1Password secrets (API keys) onto this machine? [y/N]\033[0m '
   read -r reply
   case "$reply" in [yY]*) WANT_OP=1; ok "secrets will be applied" ;; *) info "skipping secrets (run 'USE_OP=1 chezmoi apply' later to add them)" ;; esac
 else
-  info "1Password CLI not authenticated — skipping secrets (enable CLI integration, then 'USE_OP=1 chezmoi apply')"
+  info "1Password CLI not authenticated — applying without secrets (enable CLI integration, then 'USE_OP=1 chezmoi apply')"
 fi
 
-# --- 6. Hand off to chezmoi + the private dotfiles repo ---------------------
-step "Syncing dotfiles"
-info "chezmoi init --apply $DOTFILES_REPO"
-if [ -n "$WANT_OP" ]; then USE_OP=1 chezmoi init --apply "$DOTFILES_REPO"; else chezmoi init --apply "$DOTFILES_REPO"; fi
+# --- 6. Apply: dotfiles + toolchain ----------------------------------------
+step "Applying (dotfiles + toolchain)"
+if [ -n "$WANT_OP" ]; then USE_OP=1 chezmoi apply; else chezmoi apply; fi
 
 step "Done"
 ok "Machine bootstrapped and synced."
