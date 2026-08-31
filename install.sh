@@ -62,10 +62,30 @@ fi
 if [ -n "$IS_LINUX" ]; then
   step "Homebrew prerequisites"
   if command -v apt-get >/dev/null 2>&1; then
-    info "apt-get install build-essential procps curl file git (will prompt for your password)…"
-    sudo apt-get update -y && sudo apt-get install -y build-essential procps curl file git
+    info "apt-get install build-essential procps curl file git zsh (will prompt for your password)…"
+    sudo apt-get update -y && sudo apt-get install -y build-essential procps curl file git zsh
   else
-    warn "no apt-get found — install build-essential/procps/curl/file/git for your distro manually if the Homebrew install below fails."
+    warn "no apt-get found — install build-essential/procps/curl/file/git/zsh for your distro manually if the Homebrew install below fails."
+  fi
+fi
+
+# --- 1c. Default shell: zsh — Linux only -------------------------------------
+# macOS ships zsh as the default login shell already; Raspberry Pi OS (and most
+# Debian-based distros) default to bash, so the chezmoi-managed .zshrc/.zshenv
+# would silently never load without this.
+if [ -n "$IS_LINUX" ] && command -v zsh >/dev/null 2>&1; then
+  step "Default shell"
+  ZSH_PATH="$(command -v zsh)"
+  CURRENT_SHELL="$(getent passwd "$USER" | cut -d: -f7)"
+  if [ "$CURRENT_SHELL" = "$ZSH_PATH" ]; then
+    ok "already zsh"
+  else
+    grep -qxF "$ZSH_PATH" /etc/shells 2>/dev/null || echo "$ZSH_PATH" | sudo tee -a /etc/shells >/dev/null
+    if sudo chsh -s "$ZSH_PATH" "$USER"; then
+      ok "set to $ZSH_PATH (takes effect on your next login)"
+    else
+      warn "couldn't chsh automatically — run: sudo chsh -s $ZSH_PATH $USER"
+    fi
   fi
 fi
 
