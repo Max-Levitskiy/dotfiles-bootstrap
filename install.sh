@@ -62,10 +62,10 @@ fi
 if [ -n "$IS_LINUX" ]; then
   step "Homebrew prerequisites"
   if command -v apt-get >/dev/null 2>&1; then
-    info "apt-get install build-essential procps curl file git zsh (will prompt for your password)…"
-    sudo apt-get update -y && sudo apt-get install -y build-essential procps curl file git zsh
+    info "apt-get install build-essential procps curl file git unzip zsh (will prompt for your password)…"
+    sudo apt-get update -y && sudo apt-get install -y build-essential procps curl file git unzip zsh
   else
-    warn "no apt-get found — install build-essential/procps/curl/file/git/zsh for your distro manually if the Homebrew install below fails."
+    warn "no apt-get found — install build-essential/procps/curl/file/git/unzip/zsh for your distro manually if the Homebrew install below fails."
   fi
 fi
 
