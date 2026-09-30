@@ -69,28 +69,6 @@ if [ -n "$IS_LINUX" ]; then
   fi
 fi
 
-# --- 1b'. en_US.UTF-8 locale — Linux only ------------------------------------
-# The chezmoi-managed .zshrc exports LANG=en_US.UTF-8. Ubuntu (incl. WSL) and
-# Raspberry Pi OS often ship only C.UTF-8, so every perl/brew call then spams
-# "locale: Cannot set LC_CTYPE to default locale".
-if [ -n "$IS_LINUX" ]; then
-  step "Locale en_US.UTF-8"
-  if locale -a 2>/dev/null | grep -qiE '^en_US\.utf-?8$'; then
-    ok "already generated"
-  elif command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get install -y locales
-    # Debian's locale-gen ignores arguments and reads /etc/locale.gen; Ubuntu's takes them.
-    [ -f /etc/locale.gen ] && sudo sed -i 's/^# *\(en_US\.UTF-8 UTF-8\)/\1/' /etc/locale.gen
-    if sudo locale-gen en_US.UTF-8; then
-      ok "generated"
-    else
-      warn "locale-gen failed — run: sudo locale-gen en_US.UTF-8"
-    fi
-  else
-    warn "no apt-get found — generate the en_US.UTF-8 locale for your distro manually."
-  fi
-fi
-
 # --- 1c. Default shell: zsh — Linux only -------------------------------------
 # macOS ships zsh as the default login shell already; Raspberry Pi OS (and most
 # Debian-based distros) default to bash, so the chezmoi-managed .zshrc/.zshenv
